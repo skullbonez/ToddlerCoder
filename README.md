@@ -6,6 +6,14 @@ The screen has a project list on the left, a fake editor and output panel in the
 
 ## Run Kid Mode
 
+Double-click:
+
+```text
+run-kid-mode.bat
+```
+
+Or from PowerShell:
+
 ```powershell
 dotnet run --project .\ToddlerCoder.csproj
 ```
@@ -18,11 +26,39 @@ You can also press `Ctrl+Alt+Del`, open Task Manager, select `ToddlerCoder`, and
 
 ## Debug Windowed Mode
 
+Double-click:
+
+```text
+run-debug-windowed.bat
+```
+
+Or from PowerShell:
+
 ```powershell
 dotnet run --project .\ToddlerCoder.csproj -- --debug-windowed
 ```
 
 This opens a normal resizable window and does not install the keyboard guard. Use this mode while changing the visuals or behavior.
+
+## Publish Release Exe
+
+Double-click:
+
+```text
+publish-release.bat
+```
+
+Or from PowerShell:
+
+```powershell
+dotnet publish .\ToddlerCoder.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+```
+
+The published exe is written to:
+
+```text
+bin\Release\net10.0-windows\win-x64\publish\ToddlerCoder.exe
+```
 
 ## Visual Studio
 
