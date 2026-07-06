@@ -1,0 +1,820 @@
+namespace ToddlerCoder;
+
+public partial class Form1 : Form
+{
+    private readonly bool _kioskMode;
+    private readonly List<string> _lines = [];
+    private readonly Queue<string> _terminalLines = [];
+    private readonly Queue<DiffLine> _diffLines = [];
+    private readonly System.Windows.Forms.Timer _paintTimer = new();
+    private readonly Random _random = new();
+    private readonly Font _codeFont;
+    private readonly Font _diffFont;
+    private readonly Font _smallFont;
+    private readonly Font _tinyFont;
+    private readonly Font _titleFont;
+    private readonly Brush _appBackgroundBrush = new SolidBrush(Color.FromArgb(13, 17, 23));
+    private readonly Brush _panelBrush = new SolidBrush(Color.FromArgb(22, 27, 34));
+    private readonly Brush _panelSoftBrush = new SolidBrush(Color.FromArgb(28, 34, 43));
+    private readonly Brush _sidebarBrush = new SolidBrush(Color.FromArgb(18, 22, 29));
+    private readonly Brush _gutterBrush = new SolidBrush(Color.FromArgb(17, 21, 27));
+    private readonly Brush _lineNumberBrush = new SolidBrush(Color.FromArgb(99, 113, 128));
+    private readonly Brush _normalCodeBrush = new SolidBrush(Color.FromArgb(214, 223, 231));
+    private readonly Brush _keywordBrush = new SolidBrush(Color.FromArgb(111, 211, 187));
+    private readonly Brush _stringBrush = new SolidBrush(Color.FromArgb(242, 191, 111));
+    private readonly Brush _commentBrush = new SolidBrush(Color.FromArgb(119, 139, 151));
+    private readonly Brush _numberBrush = new SolidBrush(Color.FromArgb(169, 205, 255));
+    private readonly Brush _accentBrush = new SolidBrush(Color.FromArgb(139, 171, 255));
+    private readonly Brush _softTextBrush = new SolidBrush(Color.FromArgb(159, 172, 184));
+    private readonly Brush _mutedTextBrush = new SolidBrush(Color.FromArgb(114, 127, 140));
+    private readonly Brush _activeBrush = new SolidBrush(Color.FromArgb(39, 48, 61));
+    private readonly Brush _plusBackgroundBrush = new SolidBrush(Color.FromArgb(22, 54, 42));
+    private readonly Brush _minusBackgroundBrush = new SolidBrush(Color.FromArgb(61, 35, 37));
+    private readonly Brush _plusTextBrush = new SolidBrush(Color.FromArgb(151, 235, 178));
+    private readonly Brush _minusTextBrush = new SolidBrush(Color.FromArgb(255, 165, 165));
+    private readonly Pen _dividerPen = new(Color.FromArgb(47, 57, 69));
+    private readonly Pen _softDividerPen = new(Color.FromArgb(34, 42, 52));
+    private readonly Pen _cursorPen = new(Color.FromArgb(242, 191, 111), 2);
+
+    private KeyboardGuard? _keyboardGuard;
+    private int _scriptIndex;
+    private int _typedLength;
+    private int _keyCount;
+    private int _pulse;
+    private int _activeProjectIndex;
+    private string _currentBanner = "";
+    private int _bannerTicks;
+    private bool _allowClose;
+
+    private static readonly ProjectInfo[] Projects =
+    [
+        new("blocks-bot", "build helper", 42, ["Builder.cs", "Robot.cs", "Blocks.test.cs"]),
+        new("moon-lights", "soft glow", 68, ["Glow.cs", "Moon.cs", "NightMode.cs"]),
+        new("snack-timer", "very important", 17, ["Timer.cs", "Crackers.cs", "Milk.cs"]),
+        new("train-builder", "tiny engine", 84, ["Track.cs", "Engine.cs", "Tunnel.cs"]),
+        new("button-lab", "tap tests", 31, ["Buttons.cs", "Beep.cs", "Squish.cs"]),
+    ];
+
+    private static readonly string[] Script =
+    [
+        "using TinyHands.Playground;",
+        "using TinyHands.Review;",
+        "",
+        "var plan = new ProjectPlan(\"blocks-bot\");",
+        "plan.AddStep(\"open workspace\");",
+        "plan.AddStep(\"write helpful code\");",
+        "plan.AddStep(\"make daddy proud\");",
+        "",
+        "while (keyboard.IsMashing)",
+        "{",
+        "    editor.TypeLikeDaddy();",
+        "    diff.ShowTinyChanges();",
+        "    tests.RunSoftly();",
+        "    build.SaveProgress();",
+        "}",
+        "",
+        "if (snackTime.IsReady)",
+        "{",
+        "    console.WriteLine(\"ship snack timer\");",
+        "    project.Status = Status.Ready;",
+        "}",
+        "",
+        "for (var block = 0; block < 10; block++)",
+        "{",
+        "    tower.Place(block);",
+        "    lights.GlowSoftly();",
+        "    robot.Wave();",
+        "}",
+        "",
+        "// review notes from the tiny teammate",
+        "review.MarkNice(\"gentle colors\");",
+        "review.MarkNice(\"good button noises\");",
+        "review.Approve();",
+        "",
+        "await cloud.SendHighFiveAsync();",
+        "workspace.Commit(\"tiny coder changes\");",
+        "console.WriteLine(\"build succeeded\");",
+    ];
+
+    private static readonly string[] TerminalMessages =
+    [
+        "[ok] saved blocks-bot",
+        "[run] drawing calm stars",
+        "[test] buttons are working",
+        "[build] checking tiny project",
+        "[ok] robot wave complete",
+        "[run] reviewing changes",
+        "[ok] build succeeded",
+        "[save] all work tucked in",
+    ];
+
+    private static readonly (string Minus, string Plus)[] DiffSnippets =
+    [
+        ("robot.Speed = Fast;", "robot.Speed = Gentle;"),
+        ("screen.Theme = Theme.Bright;", "screen.Theme = Theme.Calm;"),
+        ("tower.Blocks = 4;", "tower.Blocks = 10;"),
+        ("snack.Ready = false;", "snack.Ready = true;"),
+        ("button.Sound = Loud;", "button.Sound = SoftBeep;"),
+        ("review.Status = Pending;", "review.Status = Approved;"),
+        ("lights.Mode = Flash;", "lights.Mode = Glow;"),
+        ("train.Cars = 1;", "train.Cars = 3;"),
+    ];
+
+    private static readonly HashSet<string> Keywords =
+    [
+        "await", "bool", "class", "const", "false", "for", "if", "int", "new",
+        "return", "static", "string", "true", "using", "var", "while"
+    ];
+
+    public Form1(bool kioskMode)
+    {
+        _kioskMode = kioskMode;
+        InitializeComponent();
+        DoubleBuffered = true;
+        KeyPreview = true;
+        BackColor = Color.FromArgb(13, 17, 23);
+        _codeFont = new Font("Consolas", 19f, FontStyle.Regular, GraphicsUnit.Pixel);
+        _diffFont = new Font("Consolas", 15f, FontStyle.Regular, GraphicsUnit.Pixel);
+        _smallFont = new Font("Segoe UI", 14f, FontStyle.Regular, GraphicsUnit.Pixel);
+        _tinyFont = new Font("Segoe UI", 12f, FontStyle.Regular, GraphicsUnit.Pixel);
+        _titleFont = new Font("Segoe UI Semibold", 18f, FontStyle.Regular, GraphicsUnit.Pixel);
+
+        _lines.Add("");
+        _terminalLines.Enqueue("[ready] workspace opened");
+        _terminalLines.Enqueue("[hint] keyboard connected");
+        SeedDiff();
+
+        ConfigureWindow();
+
+        _paintTimer.Interval = 120;
+        _paintTimer.Tick += (_, _) =>
+        {
+            _pulse++;
+            if (_bannerTicks > 0)
+            {
+                _bannerTicks--;
+            }
+
+            Invalidate();
+        };
+        _paintTimer.Start();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+
+        if (_kioskMode)
+        {
+            Bounds = Screen.FromControl(this).Bounds;
+            WindowState = FormWindowState.Maximized;
+            _keyboardGuard = new KeyboardGuard();
+        }
+
+        Activate();
+        Focus();
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (TryHandleParentExit(keyData))
+        {
+            return true;
+        }
+
+        HandleMash(keyData);
+        return true;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (TryHandleParentExit(e.KeyData))
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        HandleMash(e.KeyData);
+        e.Handled = true;
+        e.SuppressKeyPress = true;
+        base.OnKeyDown(e);
+    }
+
+    protected override void OnKeyPress(KeyPressEventArgs e)
+    {
+        e.Handled = true;
+        base.OnKeyPress(e);
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (_kioskMode && !_allowClose && e.CloseReason is not CloseReason.TaskManagerClosing and not CloseReason.WindowsShutDown)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        base.OnFormClosing(e);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        _keyboardGuard?.Dispose();
+        _paintTimer.Dispose();
+        _codeFont.Dispose();
+        _diffFont.Dispose();
+        _smallFont.Dispose();
+        _tinyFont.Dispose();
+        _titleFont.Dispose();
+        _dividerPen.Dispose();
+        _softDividerPen.Dispose();
+        _cursorPen.Dispose();
+        _appBackgroundBrush.Dispose();
+        _panelBrush.Dispose();
+        _panelSoftBrush.Dispose();
+        _sidebarBrush.Dispose();
+        _gutterBrush.Dispose();
+        _lineNumberBrush.Dispose();
+        _normalCodeBrush.Dispose();
+        _keywordBrush.Dispose();
+        _stringBrush.Dispose();
+        _commentBrush.Dispose();
+        _numberBrush.Dispose();
+        _accentBrush.Dispose();
+        _softTextBrush.Dispose();
+        _mutedTextBrush.Dispose();
+        _activeBrush.Dispose();
+        _plusBackgroundBrush.Dispose();
+        _minusBackgroundBrush.Dispose();
+        _plusTextBrush.Dispose();
+        _minusTextBrush.Dispose();
+        base.OnFormClosed(e);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+
+        Graphics g = e.Graphics;
+        g.Clear(Color.FromArgb(13, 17, 23));
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+        int width = ClientSize.Width;
+        int height = ClientSize.Height;
+        int headerHeight = 50;
+        int statusHeight = 32;
+        int sidebarWidth = Math.Clamp(width / 5, 210, 300);
+        int diffWidth = Math.Clamp(width / 3, 300, 460);
+
+        if (width - sidebarWidth - diffWidth < 420)
+        {
+            diffWidth = Math.Max(260, width - sidebarWidth - 420);
+        }
+
+        Rectangle header = new(0, 0, width, headerHeight);
+        Rectangle status = new(0, height - statusHeight, width, statusHeight);
+        Rectangle sidebar = new(0, header.Bottom, sidebarWidth, height - headerHeight - statusHeight);
+        Rectangle diff = new(width - diffWidth, header.Bottom, diffWidth, height - headerHeight - statusHeight);
+        Rectangle center = new(sidebar.Right, header.Bottom, diff.Left - sidebar.Right, height - headerHeight - statusHeight);
+
+        DrawHeader(g, header);
+        DrawSidebar(g, sidebar);
+        DrawWorkspace(g, center);
+        DrawDiffPane(g, diff);
+        DrawStatus(g, status);
+        DrawBanner(g, width);
+    }
+
+    private void ConfigureWindow()
+    {
+        Text = _kioskMode ? "Toddler Coder" : "Toddler Coder - Debug Windowed";
+        StartPosition = FormStartPosition.CenterScreen;
+
+        if (_kioskMode)
+        {
+            FormBorderStyle = FormBorderStyle.None;
+            WindowState = FormWindowState.Maximized;
+            TopMost = false;
+            MinimizeBox = false;
+            MaximizeBox = false;
+            ControlBox = false;
+            ShowInTaskbar = true;
+        }
+        else
+        {
+            FormBorderStyle = FormBorderStyle.Sizable;
+            Size = new Size(1280, 800);
+            MinimumSize = new Size(980, 620);
+        }
+    }
+
+    private bool TryHandleParentExit(Keys keyData)
+    {
+        if (!_kioskMode)
+        {
+            return false;
+        }
+
+        Keys key = keyData & Keys.KeyCode;
+        bool parentChord = key == Keys.Q
+            && keyData.HasFlag(Keys.Control)
+            && keyData.HasFlag(Keys.Shift);
+
+        if (!parentChord)
+        {
+            return false;
+        }
+
+        _allowClose = true;
+        Close();
+        return true;
+    }
+
+    private void HandleMash(Keys keyData)
+    {
+        Keys key = keyData & Keys.KeyCode;
+
+        if (key is Keys.None or Keys.ControlKey or Keys.ShiftKey or Keys.Menu)
+        {
+            return;
+        }
+
+        _keyCount++;
+
+        int amount = key switch
+        {
+            Keys.Enter => 12,
+            Keys.Space => 8,
+            Keys.Back => 3,
+            Keys.Tab => 10,
+            _ => _random.Next(2, 7)
+        };
+
+        AdvanceTyping(amount);
+
+        if (_keyCount % 4 == 0)
+        {
+            AddDiffChange();
+        }
+
+        if (_keyCount % 7 == 0)
+        {
+            AddTerminalMessage(TerminalMessages[_random.Next(TerminalMessages.Length)]);
+        }
+
+        if (_keyCount % 17 == 0)
+        {
+            _activeProjectIndex = (_activeProjectIndex + 1) % Projects.Length;
+            AddDiffHeader(Projects[_activeProjectIndex]);
+        }
+
+        if (_keyCount % 31 == 0)
+        {
+            _currentBanner = _random.Next(3) switch
+            {
+                0 => "build succeeded",
+                1 => "review approved",
+                _ => "project saved"
+            };
+            _bannerTicks = 28;
+        }
+
+        Invalidate();
+    }
+
+    private void AdvanceTyping(int amount)
+    {
+        for (int i = 0; i < amount; i++)
+        {
+            string target = Script[_scriptIndex];
+
+            if (_typedLength >= target.Length)
+            {
+                MoveToNextLine();
+                continue;
+            }
+
+            _lines[^1] = target[..(_typedLength + 1)];
+            _typedLength++;
+        }
+    }
+
+    private void MoveToNextLine()
+    {
+        _scriptIndex = (_scriptIndex + 1) % Script.Length;
+        _typedLength = 0;
+        _lines.Add("");
+
+        while (_lines.Count > 160)
+        {
+            _lines.RemoveAt(0);
+        }
+    }
+
+    private void AddTerminalMessage(string message)
+    {
+        _terminalLines.Enqueue(message);
+
+        while (_terminalLines.Count > 5)
+        {
+            _terminalLines.Dequeue();
+        }
+    }
+
+    private void SeedDiff()
+    {
+        AddDiffHeader(Projects[0]);
+        _diffLines.Enqueue(new DiffLine(' ', "  while (keyboard.IsMashing)"));
+        _diffLines.Enqueue(new DiffLine('-', "      screen.Theme = Theme.Bright;"));
+        _diffLines.Enqueue(new DiffLine('+', "      screen.Theme = Theme.Calm;"));
+        _diffLines.Enqueue(new DiffLine('+', "      diff.ShowTinyChanges();"));
+    }
+
+    private void AddDiffHeader(ProjectInfo project)
+    {
+        _diffLines.Enqueue(new DiffLine(' ', $"diff --git a/{project.Name}/Builder.cs b/{project.Name}/Builder.cs"));
+        _diffLines.Enqueue(new DiffLine(' ', "@@ tiny workspace @@"));
+        TrimDiff();
+    }
+
+    private void AddDiffChange()
+    {
+        (string minus, string plus) = DiffSnippets[_random.Next(DiffSnippets.Length)];
+        _diffLines.Enqueue(new DiffLine(' ', "  tiny.ChangeSet.Apply();"));
+        _diffLines.Enqueue(new DiffLine('-', $"  {minus}"));
+        _diffLines.Enqueue(new DiffLine('+', $"  {plus}"));
+        TrimDiff();
+    }
+
+    private void TrimDiff()
+    {
+        while (_diffLines.Count > 60)
+        {
+            _diffLines.Dequeue();
+        }
+    }
+
+    private void DrawHeader(Graphics g, Rectangle bounds)
+    {
+        g.FillRectangle(_panelBrush, bounds);
+        g.DrawLine(_dividerPen, bounds.Left, bounds.Bottom - 1, bounds.Right, bounds.Bottom - 1);
+
+        using Brush dotRed = new SolidBrush(Color.FromArgb(239, 112, 112));
+        using Brush dotYellow = new SolidBrush(Color.FromArgb(242, 191, 111));
+        using Brush dotGreen = new SolidBrush(Color.FromArgb(112, 211, 151));
+        using Brush logoBrush = new SolidBrush(Color.FromArgb(36, 45, 57));
+
+        g.FillEllipse(dotRed, 18, 19, 12, 12);
+        g.FillEllipse(dotYellow, 38, 19, 12, 12);
+        g.FillEllipse(dotGreen, 58, 19, 12, 12);
+
+        Rectangle logo = new(88, 11, 104, 28);
+        g.FillRectangle(logoBrush, logo);
+        DrawText(g, "tiny codex", _smallFont, _normalCodeBrush, logo, StringAlignment.Center, StringAlignment.Center);
+
+        Rectangle title = new(212, 12, Math.Max(100, bounds.Width - 480), 28);
+        DrawText(g, "workspace / little-coder", _titleFont, _normalCodeBrush, title);
+
+        string mode = _kioskMode ? "kid mode" : "debug windowed";
+        Rectangle modeBounds = new(bounds.Right - 180, 14, 150, 24);
+        DrawText(g, mode, _smallFont, _softTextBrush, modeBounds, StringAlignment.Far);
+    }
+
+    private void DrawSidebar(Graphics g, Rectangle bounds)
+    {
+        g.FillRectangle(_sidebarBrush, bounds);
+        g.DrawLine(_dividerPen, bounds.Right - 1, bounds.Top, bounds.Right - 1, bounds.Bottom);
+
+        Rectangle title = new(bounds.Left + 18, bounds.Top + 18, bounds.Width - 36, 24);
+        DrawText(g, "Projects", _titleFont, _normalCodeBrush, title);
+
+        Rectangle subtitle = new(bounds.Left + 18, bounds.Top + 45, bounds.Width - 36, 20);
+        DrawText(g, "tiny workspaces", _smallFont, _mutedTextBrush, subtitle);
+
+        int y = bounds.Top + 82;
+        for (int i = 0; i < Projects.Length; i++)
+        {
+            DrawProjectItem(g, bounds, Projects[i], i, y);
+            y += 72;
+        }
+
+        int fileTop = y + 20;
+        g.DrawLine(_softDividerPen, bounds.Left + 18, fileTop, bounds.Right - 18, fileTop);
+        DrawText(g, "Files", _smallFont, _softTextBrush, new Rectangle(bounds.Left + 18, fileTop + 18, bounds.Width - 36, 22));
+
+        string[] files = Projects[_activeProjectIndex].Files;
+        y = fileTop + 50;
+        foreach (string file in files)
+        {
+            Rectangle fileBounds = new(bounds.Left + 28, y, bounds.Width - 46, 24);
+            DrawText(g, file, _smallFont, _normalCodeBrush, fileBounds);
+            y += 28;
+        }
+    }
+
+    private void DrawProjectItem(Graphics g, Rectangle sidebar, ProjectInfo project, int index, int y)
+    {
+        Rectangle item = new(sidebar.Left + 10, y, sidebar.Width - 20, 60);
+        bool active = index == _activeProjectIndex;
+
+        if (active)
+        {
+            g.FillRectangle(_activeBrush, item);
+        }
+
+        Rectangle nameBounds = new(item.Left + 14, item.Top + 9, item.Width - 28, 20);
+        Rectangle detailBounds = new(item.Left + 14, item.Top + 30, item.Width - 28, 18);
+        DrawText(g, project.Name, _smallFont, active ? _normalCodeBrush : _softTextBrush, nameBounds);
+        DrawText(g, project.Detail, _tinyFont, _mutedTextBrush, detailBounds);
+
+        int progress = Math.Clamp(project.BaseProgress + (active ? _keyCount % 30 : 0), 0, 98);
+        Rectangle track = new(item.Left + 14, item.Bottom - 8, item.Width - 28, 3);
+        using Brush trackBrush = new SolidBrush(Color.FromArgb(43, 52, 63));
+        using Brush fillBrush = new SolidBrush(active ? Color.FromArgb(111, 211, 187) : Color.FromArgb(91, 107, 123));
+        g.FillRectangle(trackBrush, track);
+        g.FillRectangle(fillBrush, track.Left, track.Top, Math.Max(4, track.Width * progress / 100), track.Height);
+    }
+
+    private void DrawWorkspace(Graphics g, Rectangle bounds)
+    {
+        g.FillRectangle(_appBackgroundBrush, bounds);
+        g.DrawLine(_dividerPen, bounds.Right - 1, bounds.Top, bounds.Right - 1, bounds.Bottom);
+
+        int terminalHeight = Math.Clamp(bounds.Height / 4, 120, 178);
+        Rectangle editorHeader = new(bounds.Left, bounds.Top, bounds.Width, 42);
+        Rectangle editor = new(bounds.Left, editorHeader.Bottom, bounds.Width, bounds.Height - terminalHeight - editorHeader.Height);
+        Rectangle terminal = new(bounds.Left, editor.Bottom, bounds.Width, terminalHeight);
+
+        DrawEditorHeader(g, editorHeader);
+        DrawEditor(g, editor);
+        DrawTerminal(g, terminal);
+    }
+
+    private void DrawEditorHeader(Graphics g, Rectangle bounds)
+    {
+        g.FillRectangle(_panelBrush, bounds);
+        g.DrawLine(_softDividerPen, bounds.Left, bounds.Bottom - 1, bounds.Right, bounds.Bottom - 1);
+
+        Rectangle tab = new(bounds.Left + 16, bounds.Top + 7, Math.Min(320, bounds.Width - 32), 30);
+        using Brush tabBrush = new SolidBrush(Color.FromArgb(31, 39, 50));
+        g.FillRectangle(tabBrush, tab);
+        DrawText(g, $"{Projects[_activeProjectIndex].Name}/Builder.cs", _smallFont, _normalCodeBrush, Inset(tab, 12, 5, 12, 4));
+    }
+
+    private void DrawEditor(Graphics g, Rectangle bounds)
+    {
+        int gutterWidth = Math.Clamp(bounds.Width / 10, 58, 92);
+        Rectangle gutter = new(bounds.Left, bounds.Top, gutterWidth, bounds.Height);
+        Rectangle codeArea = new(gutter.Right, bounds.Top, bounds.Width - gutterWidth, bounds.Height);
+
+        g.FillRectangle(_appBackgroundBrush, bounds);
+        g.FillRectangle(_gutterBrush, gutter);
+        g.DrawLine(_softDividerPen, gutter.Right, gutter.Top, gutter.Right, gutter.Bottom);
+
+        using Region previousClip = g.Clip.Clone();
+        g.SetClip(bounds);
+
+        float lineHeight = _codeFont.GetHeight(g) + 8;
+        int maxLines = Math.Max(1, (int)((bounds.Height - 24) / lineHeight));
+        int start = Math.Max(0, _lines.Count - maxLines);
+        float y = bounds.Top + 14;
+
+        for (int i = start; i < _lines.Count; i++)
+        {
+            string lineNumber = (i + 1).ToString();
+            SizeF numberSize = g.MeasureString(lineNumber, _tinyFont);
+            g.DrawString(lineNumber, _tinyFont, _lineNumberBrush, gutter.Right - numberSize.Width - 14, y + 5);
+            DrawCodeLine(g, _lines[i], codeArea.Left + 20, y);
+            y += lineHeight;
+        }
+
+        if ((_pulse / 4) % 2 == 0)
+        {
+            string currentLine = _lines.Count == 0 ? "" : _lines[^1];
+            float cursorX = codeArea.Left + 20 + MeasureCode(g, currentLine);
+            float cursorY = bounds.Top + 14 + ((_lines.Count - start - 1) * lineHeight);
+            g.DrawLine(_cursorPen, cursorX + 3, cursorY + 3, cursorX + 3, cursorY + lineHeight - 5);
+        }
+
+        g.Clip = previousClip;
+    }
+
+    private void DrawCodeLine(Graphics g, string line, float x, float y)
+    {
+        if (string.IsNullOrEmpty(line))
+        {
+            return;
+        }
+
+        if (line.TrimStart().StartsWith("//", StringComparison.Ordinal))
+        {
+            g.DrawString(line, _codeFont, _commentBrush, x, y);
+            return;
+        }
+
+        int i = 0;
+        float cursor = x;
+
+        while (i < line.Length)
+        {
+            char c = line[i];
+
+            if (c == '"')
+            {
+                int end = line.IndexOf('"', i + 1);
+                end = end < 0 ? line.Length - 1 : end;
+                string token = line[i..(end + 1)];
+                g.DrawString(token, _codeFont, _stringBrush, cursor, y);
+                cursor += MeasureCode(g, token);
+                i = end + 1;
+                continue;
+            }
+
+            if (char.IsLetter(c) || c == '_')
+            {
+                int start = i;
+                while (i < line.Length && (char.IsLetterOrDigit(line[i]) || line[i] == '_'))
+                {
+                    i++;
+                }
+
+                string token = line[start..i];
+                Brush tokenBrush = Keywords.Contains(token) ? _keywordBrush : _normalCodeBrush;
+                g.DrawString(token, _codeFont, tokenBrush, cursor, y);
+                cursor += MeasureCode(g, token);
+                continue;
+            }
+
+            if (char.IsDigit(c))
+            {
+                int start = i;
+                while (i < line.Length && char.IsDigit(line[i]))
+                {
+                    i++;
+                }
+
+                string token = line[start..i];
+                g.DrawString(token, _codeFont, _numberBrush, cursor, y);
+                cursor += MeasureCode(g, token);
+                continue;
+            }
+
+            string symbol = c.ToString();
+            Brush brush = c is '(' or ')' or '{' or '}' or '[' or ']' ? _accentBrush : _normalCodeBrush;
+            g.DrawString(symbol, _codeFont, brush, cursor, y);
+            cursor += MeasureCode(g, symbol);
+            i++;
+        }
+    }
+
+    private float MeasureCode(Graphics g, string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 0;
+        }
+
+        StringFormat format = StringFormat.GenericTypographic;
+        return g.MeasureString(text, _codeFont, int.MaxValue, format).Width;
+    }
+
+    private void DrawTerminal(Graphics g, Rectangle bounds)
+    {
+        using Brush terminalBrush = new SolidBrush(Color.FromArgb(9, 13, 18));
+        g.FillRectangle(terminalBrush, bounds);
+        g.DrawLine(_dividerPen, bounds.Left, bounds.Top, bounds.Right, bounds.Top);
+
+        Rectangle title = new(bounds.Left + 18, bounds.Top + 12, bounds.Width - 36, 20);
+        DrawText(g, "output", _smallFont, _softTextBrush, title);
+
+        float y = bounds.Top + 40;
+        foreach (string line in _terminalLines)
+        {
+            g.DrawString(line, _diffFont, _normalCodeBrush, bounds.Left + 20, y);
+            y += _diffFont.GetHeight(g) + 5;
+        }
+    }
+
+    private void DrawDiffPane(Graphics g, Rectangle bounds)
+    {
+        g.FillRectangle(_panelBrush, bounds);
+
+        Rectangle header = new(bounds.Left, bounds.Top, bounds.Width, 78);
+        g.FillRectangle(_panelSoftBrush, header);
+        g.DrawLine(_dividerPen, bounds.Left, header.Bottom - 1, bounds.Right, header.Bottom - 1);
+
+        DrawText(g, "Review", _titleFont, _normalCodeBrush, new Rectangle(header.Left + 18, header.Top + 16, header.Width - 36, 24));
+        DrawText(g, "live diff", _smallFont, _mutedTextBrush, new Rectangle(header.Left + 18, header.Top + 42, header.Width - 36, 20));
+
+        Rectangle fileBadge = new(bounds.Left + 18, header.Bottom + 14, bounds.Width - 36, 28);
+        using Brush badgeBrush = new SolidBrush(Color.FromArgb(33, 41, 52));
+        g.FillRectangle(badgeBrush, fileBadge);
+        DrawText(g, $"{Projects[_activeProjectIndex].Name}/Builder.cs", _smallFont, _softTextBrush, Inset(fileBadge, 12, 5, 12, 4));
+
+        Rectangle diffArea = new(bounds.Left, fileBadge.Bottom + 14, bounds.Width, bounds.Bottom - fileBadge.Bottom - 14);
+        using Region previousClip = g.Clip.Clone();
+        g.SetClip(diffArea);
+
+        float lineHeight = _diffFont.GetHeight(g) + 7;
+        int maxLines = Math.Max(1, (int)((diffArea.Height - 16) / lineHeight));
+        DiffLine[] lines = _diffLines.ToArray();
+        int start = Math.Max(0, lines.Length - maxLines);
+        float y = diffArea.Top + 8;
+
+        for (int i = start; i < lines.Length; i++)
+        {
+            DrawDiffLine(g, lines[i], diffArea, y, lineHeight);
+            y += lineHeight;
+        }
+
+        g.Clip = previousClip;
+    }
+
+    private void DrawDiffLine(Graphics g, DiffLine line, Rectangle bounds, float y, float lineHeight)
+    {
+        RectangleF row = new(bounds.Left, y - 1, bounds.Width, lineHeight);
+        Brush textBrush = _softTextBrush;
+
+        if (line.Marker == '+')
+        {
+            g.FillRectangle(_plusBackgroundBrush, row);
+            textBrush = _plusTextBrush;
+        }
+        else if (line.Marker == '-')
+        {
+            g.FillRectangle(_minusBackgroundBrush, row);
+            textBrush = _minusTextBrush;
+        }
+
+        RectangleF marker = new(bounds.Left + 14, y + 3, 18, lineHeight);
+        RectangleF text = new(bounds.Left + 36, y + 3, bounds.Width - 50, lineHeight);
+        g.DrawString(line.Marker.ToString(), _diffFont, textBrush, marker);
+        DrawText(g, line.Text, _diffFont, textBrush, text);
+    }
+
+    private void DrawStatus(Graphics g, Rectangle bounds)
+    {
+        using Brush statusBrush = new SolidBrush(Color.FromArgb(28, 49, 58));
+        g.FillRectangle(statusBrush, bounds);
+
+        string left = $"keys: {_keyCount}";
+        string middle = $"project: {Projects[_activeProjectIndex].Name}";
+        string right = _kioskMode ? "kid mode" : "debug windowed";
+
+        DrawText(g, left, _smallFont, Brushes.White, new Rectangle(bounds.Left + 18, bounds.Top + 7, 130, bounds.Height - 8));
+        DrawText(g, middle, _smallFont, Brushes.White, new Rectangle(bounds.Left + 160, bounds.Top + 7, bounds.Width - 350, bounds.Height - 8));
+        DrawText(g, right, _smallFont, Brushes.White, new Rectangle(bounds.Right - 170, bounds.Top + 7, 150, bounds.Height - 8), StringAlignment.Far);
+    }
+
+    private void DrawBanner(Graphics g, int width)
+    {
+        if (_bannerTicks <= 0 || string.IsNullOrWhiteSpace(_currentBanner))
+        {
+            return;
+        }
+
+        int alpha = Math.Clamp(_bannerTicks * 8, 0, 176);
+        using Brush bannerBrush = new SolidBrush(Color.FromArgb(alpha, 34, 52, 61));
+        using Brush textBrush = new SolidBrush(Color.FromArgb(Math.Clamp(alpha + 45, 0, 255), 242, 247, 250));
+        using Font bannerFont = new("Segoe UI Semibold", 30f, FontStyle.Regular, GraphicsUnit.Pixel);
+
+        SizeF size = g.MeasureString(_currentBanner, bannerFont);
+        RectangleF box = new((width - size.Width) / 2 - 28, 84, size.Width + 56, 64);
+        g.FillRectangle(bannerBrush, box);
+        g.DrawString(_currentBanner, bannerFont, textBrush, box.Left + 28, box.Top + 16);
+    }
+
+    private static Rectangle Inset(Rectangle rectangle, int left, int top, int right, int bottom)
+    {
+        return new Rectangle(
+            rectangle.Left + left,
+            rectangle.Top + top,
+            Math.Max(0, rectangle.Width - left - right),
+            Math.Max(0, rectangle.Height - top - bottom));
+    }
+
+    private static void DrawText(
+        Graphics g,
+        string text,
+        Font font,
+        Brush brush,
+        RectangleF bounds,
+        StringAlignment alignment = StringAlignment.Near,
+        StringAlignment lineAlignment = StringAlignment.Near)
+    {
+        using StringFormat format = new()
+        {
+            Alignment = alignment,
+            LineAlignment = lineAlignment,
+            Trimming = StringTrimming.EllipsisCharacter,
+            FormatFlags = StringFormatFlags.NoWrap
+        };
+
+        g.DrawString(text, font, brush, bounds, format);
+    }
+
+    private readonly record struct ProjectInfo(string Name, string Detail, int BaseProgress, string[] Files);
+
+    private readonly record struct DiffLine(char Marker, string Text);
+}

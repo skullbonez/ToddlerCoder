@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ToddlerCoder - Debug Windowed": {
+      "commandName": "Project",
+      "commandLineArgs": "--debug-windowed"
+    },
+    "ToddlerCoder - Kid Mode": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    }
+  }
+}

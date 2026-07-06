@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build outputs and diagnostics
+*.pdb
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
