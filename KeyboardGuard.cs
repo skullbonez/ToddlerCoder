@@ -7,15 +7,11 @@ internal sealed class KeyboardGuard : IDisposable
 {
     private const int WhKeyboardLl = 13;
     private const int WmKeyDown = 0x0100;
-    private const int WmKeyUp = 0x0101;
     private const int WmSysKeyDown = 0x0104;
-    private const int WmSysKeyUp = 0x0105;
 
     private readonly LowLevelKeyboardProc _hookProc;
     private IntPtr _hookId;
     private bool _disposed;
-    private bool _leftWinHeld;
-    private bool _rightWinHeld;
 
     public KeyboardGuard()
     {
@@ -50,13 +46,12 @@ internal sealed class KeyboardGuard : IDisposable
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && IsKeyboardEvent(wParam))
+        if (nCode >= 0 && (wParam == WmKeyDown || wParam == WmSysKeyDown))
         {
             KeyboardEvent keyboardEvent = Marshal.PtrToStructure<KeyboardEvent>(lParam);
             Keys key = (Keys)keyboardEvent.VirtualKeyCode;
-            bool keyDown = wParam == WmKeyDown || wParam == WmSysKeyDown;
 
-            if (ShouldSuppress(key, keyDown))
+            if (ShouldSuppress(key))
             {
                 return 1;
             }
@@ -65,41 +60,15 @@ internal sealed class KeyboardGuard : IDisposable
         return CallNextHookEx(_hookId, nCode, wParam, lParam);
     }
 
-    private static bool IsKeyboardEvent(IntPtr wParam)
-    {
-        return wParam == WmKeyDown
-            || wParam == WmKeyUp
-            || wParam == WmSysKeyDown
-            || wParam == WmSysKeyUp;
-    }
-
-    private bool ShouldSuppress(Keys key, bool keyDown)
+    private static bool ShouldSuppress(Keys key)
     {
         bool altDown = IsKeyDown(Keys.Menu) || IsKeyDown(Keys.LMenu) || IsKeyDown(Keys.RMenu);
         bool ctrlDown = IsKeyDown(Keys.ControlKey) || IsKeyDown(Keys.LControlKey) || IsKeyDown(Keys.RControlKey);
         bool shiftDown = IsKeyDown(Keys.ShiftKey) || IsKeyDown(Keys.LShiftKey) || IsKeyDown(Keys.RShiftKey);
 
-        if (key == Keys.LWin)
-        {
-            _leftWinHeld = keyDown;
-            return true;
-        }
-
-        if (key == Keys.RWin)
-        {
-            _rightWinHeld = keyDown;
-            return true;
-        }
-
-        bool winHeld = _leftWinHeld || _rightWinHeld || IsKeyDown(Keys.LWin) || IsKeyDown(Keys.RWin);
-        if (winHeld)
+        if (key is Keys.LWin or Keys.RWin)
         {
             return true;
-        }
-
-        if (!keyDown)
-        {
-            return false;
         }
 
         if (altDown && key is Keys.Tab or Keys.F4 or Keys.Escape or Keys.Space)
