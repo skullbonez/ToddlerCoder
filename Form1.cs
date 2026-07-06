@@ -827,11 +827,13 @@ public partial class Form1 : Form
 
         string left = $"keys: {_keyCount}";
         string middle = $"project: {Projects[_activeProjectIndex].Name}";
+        string adultNote = "Adults: Ctrl+Shift+Q exits";
         string right = _kioskMode ? "kid mode" : "debug windowed";
 
         DrawText(g, left, _smallFont, Brushes.White, new Rectangle(bounds.Left + 18, bounds.Top + 7, 130, bounds.Height - 8));
-        DrawText(g, middle, _smallFont, Brushes.White, new Rectangle(bounds.Left + 160, bounds.Top + 7, bounds.Width - 350, bounds.Height - 8));
-        DrawText(g, right, _smallFont, Brushes.White, new Rectangle(bounds.Right - 170, bounds.Top + 7, 150, bounds.Height - 8), StringAlignment.Far);
+        DrawText(g, middle, _smallFont, Brushes.White, new Rectangle(bounds.Left + 160, bounds.Top + 7, bounds.Width - 570, bounds.Height - 8));
+        DrawText(g, adultNote, _tinyFont, _softTextBrush, new Rectangle(bounds.Right - 390, bounds.Top + 9, 210, bounds.Height - 8), StringAlignment.Far);
+        DrawText(g, right, _smallFont, Brushes.White, new Rectangle(bounds.Right - 160, bounds.Top + 7, 140, bounds.Height - 8), StringAlignment.Far);
     }
 
     private void DrawBanner(Graphics g, int width)
