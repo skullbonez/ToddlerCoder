@@ -15,7 +15,7 @@ run-kid-mode.bat
 Or from PowerShell:
 
 ```powershell
-dotnet run --project .\ToddlerCoder.csproj
+dotnet run --project .\ToddlerCoder.csproj --no-launch-profile
 ```
 
 Kid mode is borderless and full-screen. It blocks common accidental exit/task-switch shortcuts such as `Alt+F4`, `Alt+Tab`, the Windows keys, and `Ctrl+Esc`.
@@ -35,7 +35,7 @@ run-debug-windowed.bat
 Or from PowerShell:
 
 ```powershell
-dotnet run --project .\ToddlerCoder.csproj -- --debug-windowed
+dotnet run --project .\ToddlerCoder.csproj --no-launch-profile -- --debug-windowed
 ```
 
 This opens a normal resizable window and does not install the keyboard guard. Use this mode while changing the visuals or behavior.

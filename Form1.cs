@@ -4,6 +4,7 @@ public partial class Form1 : Form
 {
     private readonly bool _kioskMode;
     private readonly List<string> _lines = [];
+    private readonly List<Sparkle> _sparkles = [];
     private readonly Queue<string> _terminalLines = [];
     private readonly Queue<DiffLine> _diffLines = [];
     private readonly System.Windows.Forms.Timer _paintTimer = new();
@@ -150,6 +151,8 @@ public partial class Form1 : Form
         _paintTimer.Tick += (_, _) =>
         {
             _pulse++;
+            UpdateSparkles();
+
             if (_bannerTicks > 0)
             {
                 _bannerTicks--;
@@ -205,6 +208,13 @@ public partial class Form1 : Form
     {
         e.Handled = true;
         base.OnKeyPress(e);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        AddSparkles(e.Location);
+        Invalidate();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -265,11 +275,11 @@ public partial class Form1 : Form
         int headerHeight = 50;
         int statusHeight = 32;
         int sidebarWidth = Math.Clamp(width / 5, 210, 300);
-        int diffWidth = Math.Clamp(width / 3, 300, 460);
+        int diffWidth = Math.Clamp((int)(width * 0.38f), 360, 600);
 
-        if (width - sidebarWidth - diffWidth < 420)
+        if (width - sidebarWidth - diffWidth < 390)
         {
-            diffWidth = Math.Max(260, width - sidebarWidth - 420);
+            diffWidth = Math.Max(300, width - sidebarWidth - 390);
         }
 
         Rectangle header = new(0, 0, width, headerHeight);
@@ -283,6 +293,7 @@ public partial class Form1 : Form
         DrawWorkspace(g, center);
         DrawDiffPane(g, diff);
         DrawStatus(g, status);
+        DrawSparkles(g);
         DrawBanner(g, width);
     }
 
@@ -419,6 +430,62 @@ public partial class Form1 : Form
         while (_terminalLines.Count > 5)
         {
             _terminalLines.Dequeue();
+        }
+    }
+
+    private void AddSparkles(Point location)
+    {
+        int count = _random.Next(1, 3);
+        for (int i = 0; i < count; i++)
+        {
+            float angle = (float)(_random.NextDouble() * Math.PI * 2);
+            float speed = 0.7f + (float)_random.NextDouble() * 1.4f;
+            Color color = _random.Next(4) switch
+            {
+                0 => Color.FromArgb(242, 191, 111),
+                1 => Color.FromArgb(111, 211, 187),
+                2 => Color.FromArgb(139, 171, 255),
+                _ => Color.FromArgb(242, 247, 250)
+            };
+
+            _sparkles.Add(new Sparkle(
+                new PointF(
+                    location.X + _random.Next(-6, 7),
+                    location.Y + _random.Next(-6, 7)),
+                new PointF(
+                    MathF.Cos(angle) * speed,
+                    MathF.Sin(angle) * speed - 0.4f),
+                age: 0,
+                lifespan: _random.Next(14, 24),
+                size: 3.5f + (float)_random.NextDouble() * 4.5f,
+                color));
+        }
+
+        while (_sparkles.Count > 90)
+        {
+            _sparkles.RemoveAt(0);
+        }
+    }
+
+    private void UpdateSparkles()
+    {
+        for (int i = _sparkles.Count - 1; i >= 0; i--)
+        {
+            Sparkle sparkle = _sparkles[i];
+            sparkle.Age++;
+            sparkle.Position = new PointF(
+                sparkle.Position.X + sparkle.Velocity.X,
+                sparkle.Position.Y + sparkle.Velocity.Y);
+            sparkle.Velocity = new PointF(sparkle.Velocity.X * 0.93f, sparkle.Velocity.Y * 0.93f + 0.03f);
+
+            if (sparkle.Age >= sparkle.Lifespan)
+            {
+                _sparkles.RemoveAt(i);
+            }
+            else
+            {
+                _sparkles[i] = sparkle;
+            }
         }
     }
 
@@ -785,6 +852,40 @@ public partial class Form1 : Form
         g.DrawString(_currentBanner, bannerFont, textBrush, box.Left + 28, box.Top + 16);
     }
 
+    private void DrawSparkles(Graphics g)
+    {
+        if (_sparkles.Count == 0)
+        {
+            return;
+        }
+
+        System.Drawing.Drawing2D.SmoothingMode previousSmoothing = g.SmoothingMode;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+        foreach (Sparkle sparkle in _sparkles)
+        {
+            float progress = sparkle.Age / (float)sparkle.Lifespan;
+            int alpha = Math.Clamp((int)(190 * (1f - progress)), 0, 190);
+            float size = sparkle.Size * (1f - progress * 0.35f);
+            float half = size / 2f;
+
+            using Pen pen = new(Color.FromArgb(alpha, sparkle.Color), Math.Max(1.2f, size / 3f));
+            using Brush brush = new SolidBrush(Color.FromArgb(Math.Clamp(alpha + 35, 0, 210), sparkle.Color));
+
+            PointF center = sparkle.Position;
+            g.DrawLine(pen, center.X - half, center.Y, center.X + half, center.Y);
+            g.DrawLine(pen, center.X, center.Y - half, center.X, center.Y + half);
+
+            if (size > 5f)
+            {
+                float dotSize = Math.Max(1.5f, size / 3f);
+                g.FillEllipse(brush, center.X - dotSize / 2f, center.Y - dotSize / 2f, dotSize, dotSize);
+            }
+        }
+
+        g.SmoothingMode = previousSmoothing;
+    }
+
     private static Rectangle Inset(Rectangle rectangle, int left, int top, int right, int bottom)
     {
         return new Rectangle(
@@ -817,4 +918,14 @@ public partial class Form1 : Form
     private readonly record struct ProjectInfo(string Name, string Detail, int BaseProgress, string[] Files);
 
     private readonly record struct DiffLine(char Marker, string Text);
+
+    private struct Sparkle(PointF position, PointF velocity, int age, int lifespan, float size, Color color)
+    {
+        public PointF Position = position;
+        public PointF Velocity = velocity;
+        public int Age = age;
+        public int Lifespan = lifespan;
+        public float Size = size;
+        public Color Color = color;
+    }
 }

@@ -9,7 +9,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-dotnet run --project "%~dp0ToddlerCoder.csproj"
+dotnet run --project "%~dp0ToddlerCoder.csproj" --no-launch-profile
 if errorlevel 1 (
     echo.
     echo ToddlerCoder did not start successfully.
