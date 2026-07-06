@@ -65,8 +65,14 @@ internal sealed class KeyboardGuard : IDisposable
         bool altDown = IsKeyDown(Keys.Menu) || IsKeyDown(Keys.LMenu) || IsKeyDown(Keys.RMenu);
         bool ctrlDown = IsKeyDown(Keys.ControlKey) || IsKeyDown(Keys.LControlKey) || IsKeyDown(Keys.RControlKey);
         bool shiftDown = IsKeyDown(Keys.ShiftKey) || IsKeyDown(Keys.LShiftKey) || IsKeyDown(Keys.RShiftKey);
+        bool winDown = IsKeyDown(Keys.LWin) || IsKeyDown(Keys.RWin);
 
         if (key is Keys.LWin or Keys.RWin)
+        {
+            return true;
+        }
+
+        if (winDown)
         {
             return true;
         }
