@@ -44,26 +44,50 @@ public partial class Form1 : Form
     private int _keyCount;
     private int _pulse;
     private int _activeProjectIndex;
-    private ParticleMode _particleMode = ParticleMode.Stars;
+    private int _particleOptionIndex;
     private string _currentBanner = "";
     private int _bannerTicks;
+    private float _exitHoldProgress;
+    private DateTimeOffset? _exitHoldStartedAt;
     private bool _allowClose;
+
+    private const double ExitHoldSeconds = 3;
 
     private static readonly ProjectInfo[] Projects =
     [
-        new("blocks-bot", "build helper", 42, ["Builder.cs", "Robot.cs", "Blocks.test.cs"]),
-        new("moon-lights", "soft glow", 68, ["Glow.cs", "Moon.cs", "NightMode.cs"]),
-        new("snack-timer", "very important", 17, ["Timer.cs", "Crackers.cs", "Milk.cs"]),
-        new("train-builder", "tiny engine", 84, ["Track.cs", "Engine.cs", "Tunnel.cs"]),
-        new("button-lab", "tap tests", 31, ["Buttons.cs", "Beep.cs", "Squish.cs"]),
+        new("blocks-bot", "build helper", 42, ["Builder.cs", "Robot.cs", "Blocks.test.cs", "Tower.cs", "StackRules.cs", "BuildSounds.cs", "BlockColors.cs"]),
+        new("moon-lights", "soft glow", 68, ["Glow.cs", "Moon.cs", "NightMode.cs", "Stars.cs", "SleepySky.cs", "Dimmer.cs", "Clouds.cs"]),
+        new("snack-timer", "very important", 17, ["Timer.cs", "Crackers.cs", "Milk.cs", "SnackBell.cs", "TinyPlate.cs", "Napkin.cs", "Refill.cs"]),
+        new("train-builder", "tiny engine", 84, ["Track.cs", "Engine.cs", "Tunnel.cs", "Signals.cs", "Carriages.cs", "Bridge.cs", "Station.cs"]),
+        new("button-lab", "tap tests", 31, ["Buttons.cs", "Beep.cs", "Squish.cs", "Knobs.cs", "Switches.cs", "ButtonTests.cs", "Lights.cs"]),
     ];
 
     private static readonly ParticleOption[] ParticleOptions =
     [
-        new("stars", ParticleMode.Stars),
-        new("dots", ParticleMode.Dots),
-        new("blocks", ParticleMode.Blocks),
-        new("pluses", ParticleMode.Pluses),
+        new("sunny", ParticleMode.Stars, new[]
+        {
+            Color.FromArgb(255, 220, 112),
+            Color.FromArgb(242, 191, 111),
+            Color.FromArgb(255, 243, 181),
+        }),
+        new("ocean", ParticleMode.Dots, new[]
+        {
+            Color.FromArgb(118, 198, 255),
+            Color.FromArgb(139, 171, 255),
+            Color.FromArgb(111, 211, 187),
+        }),
+        new("garden", ParticleMode.Blocks, new[]
+        {
+            Color.FromArgb(132, 222, 151),
+            Color.FromArgb(111, 211, 187),
+            Color.FromArgb(190, 230, 125),
+        }),
+        new("candy", ParticleMode.Pluses, new[]
+        {
+            Color.FromArgb(255, 159, 203),
+            Color.FromArgb(199, 160, 255),
+            Color.FromArgb(255, 196, 222),
+        }),
     ];
 
     private static readonly string[] Script =
@@ -162,6 +186,7 @@ public partial class Form1 : Form
         {
             _pulse++;
             UpdateSparkles();
+            UpdateExitHold();
 
             if (_bannerTicks > 0)
             {
@@ -343,11 +368,6 @@ public partial class Form1 : Form
 
     private bool TryHandleParentExit(Keys keyData)
     {
-        if (!_kioskMode)
-        {
-            return false;
-        }
-
         Keys key = keyData & Keys.KeyCode;
         bool parentChord = key == Keys.Q
             && keyData.HasFlag(Keys.Control)
@@ -358,9 +378,47 @@ public partial class Form1 : Form
             return false;
         }
 
+        StartExitHold();
+        return true;
+    }
+
+    private void StartExitHold()
+    {
+        _exitHoldStartedAt ??= DateTimeOffset.UtcNow;
+    }
+
+    private void UpdateExitHold()
+    {
+        if (_allowClose)
+        {
+            return;
+        }
+
+        if (!IsExitChordDown())
+        {
+            _exitHoldStartedAt = null;
+            _exitHoldProgress = 0;
+            return;
+        }
+
+        _exitHoldStartedAt ??= DateTimeOffset.UtcNow;
+        double elapsedSeconds = (DateTimeOffset.UtcNow - _exitHoldStartedAt.Value).TotalSeconds;
+        _exitHoldProgress = Math.Clamp((float)(elapsedSeconds / ExitHoldSeconds), 0f, 1f);
+
+        if (_exitHoldProgress < 1f)
+        {
+            return;
+        }
+
         _allowClose = true;
         Close();
-        return true;
+    }
+
+    private static bool IsExitChordDown()
+    {
+        return IsKeyDown(Keys.Q)
+            && (IsKeyDown(Keys.ControlKey) || IsKeyDown(Keys.LControlKey) || IsKeyDown(Keys.RControlKey))
+            && (IsKeyDown(Keys.ShiftKey) || IsKeyDown(Keys.LShiftKey) || IsKeyDown(Keys.RShiftKey));
     }
 
     private void HandleMash(Keys keyData)
@@ -463,7 +521,7 @@ public partial class Form1 : Form
                 continue;
             }
 
-            _particleMode = ParticleOptions[i].Mode;
+            _particleOptionIndex = i;
             _sparkles.Clear();
             return true;
         }
@@ -474,17 +532,13 @@ public partial class Form1 : Form
     private void AddSparkles(Point location, int countOverride = 0)
     {
         int count = countOverride > 0 ? countOverride : _random.Next(1, 3);
+        ParticleOption selectedOption = ParticleOptions[_particleOptionIndex];
+
         for (int i = 0; i < count; i++)
         {
             float angle = (float)(_random.NextDouble() * Math.PI * 2);
             float speed = 0.7f + (float)_random.NextDouble() * 1.4f;
-            Color color = _random.Next(4) switch
-            {
-                0 => Color.FromArgb(242, 191, 111),
-                1 => Color.FromArgb(111, 211, 187),
-                2 => Color.FromArgb(139, 171, 255),
-                _ => Color.FromArgb(242, 247, 250)
-            };
+            Color color = selectedOption.Palette[_random.Next(selectedOption.Palette.Length)];
 
             _sparkles.Add(new Sparkle(
                 new PointF(
@@ -497,7 +551,7 @@ public partial class Form1 : Form
                 lifespan: _random.Next(14, 24),
                 size: 3.5f + (float)_random.NextDouble() * 4.5f,
                 color,
-                _particleMode));
+                selectedOption.Mode));
         }
 
         while (_sparkles.Count > 90)
@@ -613,9 +667,14 @@ public partial class Form1 : Form
         y = fileTop + 50;
         foreach (string file in files)
         {
+            if (y + 24 > bounds.Bottom - 12)
+            {
+                break;
+            }
+
             Rectangle fileBounds = new(bounds.Left + 28, y, bounds.Width - 46, 24);
             DrawText(g, file, _smallFont, _normalCodeBrush, fileBounds);
-            y += 28;
+            y += 26;
         }
     }
 
@@ -781,7 +840,14 @@ public partial class Form1 : Form
             return 0;
         }
 
-        StringFormat format = StringFormat.GenericTypographic;
+        using StringFormat format = (StringFormat)StringFormat.GenericTypographic.Clone();
+        format.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
+
+        if (text.All(char.IsWhiteSpace))
+        {
+            return g.MeasureString("0", _codeFont, int.MaxValue, format).Width * text.Length;
+        }
+
         return g.MeasureString(text, _codeFont, int.MaxValue, format).Width;
     }
 
@@ -818,7 +884,7 @@ public partial class Form1 : Form
         g.FillRectangle(badgeBrush, fileBadge);
         DrawText(g, $"{Projects[_activeProjectIndex].Name}/Builder.cs", _smallFont, _softTextBrush, Inset(fileBadge, 12, 5, 12, 4));
 
-        Rectangle particlePanel = new(bounds.Left + 14, bounds.Bottom - 100, bounds.Width - 28, 84);
+        Rectangle particlePanel = new(bounds.Left + 14, bounds.Bottom - 142, bounds.Width - 28, 126);
         Rectangle diffArea = new(bounds.Left, fileBadge.Bottom + 14, bounds.Width, particlePanel.Top - fileBadge.Bottom - 24);
         using Region previousClip = g.Clip.Clone();
         g.SetClip(diffArea);
@@ -842,7 +908,7 @@ public partial class Form1 : Form
     private void DrawParticleControls(Graphics g, Rectangle bounds)
     {
         using Brush controlsBrush = new SolidBrush(Color.FromArgb(18, 24, 31));
-        using Brush activeButtonBrush = new SolidBrush(Color.FromArgb(45, 57, 72));
+        using Brush activeButtonBrush = new SolidBrush(Color.FromArgb(45, 58, 72));
         using Brush inactiveButtonBrush = new SolidBrush(Color.FromArgb(28, 35, 44));
         using Pen activeButtonPen = new(Color.FromArgb(111, 211, 187));
         using Pen inactiveButtonPen = new(Color.FromArgb(53, 64, 77));
@@ -850,32 +916,43 @@ public partial class Form1 : Form
         g.FillRectangle(controlsBrush, bounds);
         g.DrawRectangle(_softDividerPen, bounds);
 
-        DrawText(g, "mouse particles", _smallFont, _softTextBrush, new Rectangle(bounds.Left + 12, bounds.Top + 9, bounds.Width - 24, 20));
+        DrawText(g, "mouse trail colors", _smallFont, _softTextBrush, new Rectangle(bounds.Left + 14, bounds.Top + 10, bounds.Width - 28, 22));
 
-        int gap = 8;
+        int gap = 10;
         int buttonCount = ParticleOptions.Length;
-        int buttonWidth = Math.Max(54, (bounds.Width - 24 - gap * (buttonCount - 1)) / buttonCount);
-        int buttonHeight = 36;
-        int buttonY = bounds.Bottom - buttonHeight - 10;
-        int buttonX = bounds.Left + 12;
+        int columnCount = 2;
+        int buttonWidth = Math.Max(100, (bounds.Width - 28 - gap) / columnCount);
+        int buttonHeight = 38;
+        int startY = bounds.Top + 42;
+        int startX = bounds.Left + 14;
 
         for (int i = 0; i < buttonCount; i++)
         {
             ParticleOption option = ParticleOptions[i];
+            int row = i / columnCount;
+            int column = i % columnCount;
+            int buttonX = startX + column * (buttonWidth + gap);
+            int buttonY = startY + row * (buttonHeight + gap);
             Rectangle button = new(buttonX, buttonY, buttonWidth, buttonHeight);
             _particleButtonBounds[i] = button;
 
-            bool active = option.Mode == _particleMode;
+            bool active = i == _particleOptionIndex;
             g.FillRectangle(active ? activeButtonBrush : inactiveButtonBrush, button);
             g.DrawRectangle(active ? activeButtonPen : inactiveButtonPen, button);
 
-            Color iconColor = active ? Color.FromArgb(242, 247, 250) : Color.FromArgb(159, 172, 184);
+            Color iconColor = option.Palette[0];
             using Pen iconPen = new(iconColor, 1.8f);
             using Brush iconBrush = new SolidBrush(iconColor);
-            DrawParticleShape(g, option.Mode, new PointF(button.Left + 18, button.Top + button.Height / 2f), 10f, iconPen, iconBrush);
+            DrawParticleShape(g, option.Mode, new PointF(button.Left + 22, button.Top + button.Height / 2f), 13f, iconPen, iconBrush);
 
-            DrawText(g, option.Label, _tinyFont, active ? _normalCodeBrush : _softTextBrush, new Rectangle(button.Left + 32, button.Top + 10, button.Width - 38, 18));
-            buttonX += buttonWidth + gap;
+            for (int swatch = 0; swatch < option.Palette.Length; swatch++)
+            {
+                using Brush swatchBrush = new SolidBrush(option.Palette[swatch]);
+                int swatchX = button.Right - 42 + swatch * 11;
+                g.FillEllipse(swatchBrush, swatchX, button.Top + 12, 8, 8);
+            }
+
+            DrawText(g, option.Label, _smallFont, active ? _normalCodeBrush : _softTextBrush, new Rectangle(button.Left + 42, button.Top + 9, button.Width - 88, 20));
         }
     }
 
@@ -908,7 +985,9 @@ public partial class Form1 : Form
 
         string left = $"keys: {_keyCount}";
         string middle = $"project: {Projects[_activeProjectIndex].Name}";
-        string adultNote = "Adults: Ctrl+Shift+Q exits";
+        string adultNote = _exitHoldProgress > 0
+            ? $"Exit hold: {(int)(_exitHoldProgress * 100)}%"
+            : "Adults: hold Ctrl+Shift+Q 3s";
         string right = _kioskMode ? "kid mode" : "debug windowed";
 
         DrawText(g, left, _smallFont, Brushes.White, new Rectangle(bounds.Left + 18, bounds.Top + 7, 130, bounds.Height - 8));
@@ -1022,9 +1101,17 @@ public partial class Form1 : Form
         g.DrawString(text, font, brush, bounds, format);
     }
 
+    private static bool IsKeyDown(Keys key)
+    {
+        return (GetAsyncKeyState((int)key) & 0x8000) != 0;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
     private readonly record struct ProjectInfo(string Name, string Detail, int BaseProgress, string[] Files);
 
-    private readonly record struct ParticleOption(string Label, ParticleMode Mode);
+    private readonly record struct ParticleOption(string Label, ParticleMode Mode, Color[] Palette);
 
     private readonly record struct DiffLine(char Marker, string Text);
 

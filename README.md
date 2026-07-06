@@ -20,7 +20,7 @@ dotnet run --project .\ToddlerCoder.csproj --no-launch-profile
 
 Kid mode is borderless and full-screen. It blocks common accidental exit/task-switch shortcuts such as `Alt+F4`, `Alt+Tab`, the Windows keys, and `Ctrl+Esc`.
 
-To exit kid mode, press `Ctrl+Shift+Q`.
+To exit kid mode, hold `Ctrl+Shift+Q` for 3 seconds.
 
 You can also press `Ctrl+Alt+Del`, open Task Manager, select `ToddlerCoder`, and end the task. Windows does not allow normal apps to block `Ctrl+Alt+Del`.
 
