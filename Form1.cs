@@ -5,6 +5,7 @@ public partial class Form1 : Form
     private readonly bool _kioskMode;
     private readonly List<string> _lines = [];
     private readonly List<Sparkle> _sparkles = [];
+    private readonly Rectangle[] _particleButtonBounds = new Rectangle[4];
     private readonly Queue<string> _terminalLines = [];
     private readonly Queue<DiffLine> _diffLines = [];
     private readonly System.Windows.Forms.Timer _paintTimer = new();
@@ -43,6 +44,7 @@ public partial class Form1 : Form
     private int _keyCount;
     private int _pulse;
     private int _activeProjectIndex;
+    private ParticleMode _particleMode = ParticleMode.Stars;
     private string _currentBanner = "";
     private int _bannerTicks;
     private bool _allowClose;
@@ -54,6 +56,14 @@ public partial class Form1 : Form
         new("snack-timer", "very important", 17, ["Timer.cs", "Crackers.cs", "Milk.cs"]),
         new("train-builder", "tiny engine", 84, ["Track.cs", "Engine.cs", "Tunnel.cs"]),
         new("button-lab", "tap tests", 31, ["Buttons.cs", "Beep.cs", "Squish.cs"]),
+    ];
+
+    private static readonly ParticleOption[] ParticleOptions =
+    [
+        new("stars", ParticleMode.Stars),
+        new("dots", ParticleMode.Dots),
+        new("blocks", ParticleMode.Blocks),
+        new("pluses", ParticleMode.Pluses),
     ];
 
     private static readonly string[] Script =
@@ -215,6 +225,17 @@ public partial class Form1 : Form
         base.OnMouseMove(e);
         AddSparkles(e.Location);
         Invalidate();
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+
+        if (e.Button == MouseButtons.Left && TrySelectParticleMode(e.Location))
+        {
+            AddSparkles(e.Location, 18);
+            Invalidate();
+        }
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -433,9 +454,26 @@ public partial class Form1 : Form
         }
     }
 
-    private void AddSparkles(Point location)
+    private bool TrySelectParticleMode(Point location)
     {
-        int count = _random.Next(1, 3);
+        for (int i = 0; i < _particleButtonBounds.Length && i < ParticleOptions.Length; i++)
+        {
+            if (!_particleButtonBounds[i].Contains(location))
+            {
+                continue;
+            }
+
+            _particleMode = ParticleOptions[i].Mode;
+            _sparkles.Clear();
+            return true;
+        }
+
+        return false;
+    }
+
+    private void AddSparkles(Point location, int countOverride = 0)
+    {
+        int count = countOverride > 0 ? countOverride : _random.Next(1, 3);
         for (int i = 0; i < count; i++)
         {
             float angle = (float)(_random.NextDouble() * Math.PI * 2);
@@ -458,7 +496,8 @@ public partial class Form1 : Form
                 age: 0,
                 lifespan: _random.Next(14, 24),
                 size: 3.5f + (float)_random.NextDouble() * 4.5f,
-                color));
+                color,
+                _particleMode));
         }
 
         while (_sparkles.Count > 90)
@@ -779,7 +818,8 @@ public partial class Form1 : Form
         g.FillRectangle(badgeBrush, fileBadge);
         DrawText(g, $"{Projects[_activeProjectIndex].Name}/Builder.cs", _smallFont, _softTextBrush, Inset(fileBadge, 12, 5, 12, 4));
 
-        Rectangle diffArea = new(bounds.Left, fileBadge.Bottom + 14, bounds.Width, bounds.Bottom - fileBadge.Bottom - 14);
+        Rectangle particlePanel = new(bounds.Left + 14, bounds.Bottom - 100, bounds.Width - 28, 84);
+        Rectangle diffArea = new(bounds.Left, fileBadge.Bottom + 14, bounds.Width, particlePanel.Top - fileBadge.Bottom - 24);
         using Region previousClip = g.Clip.Clone();
         g.SetClip(diffArea);
 
@@ -796,6 +836,47 @@ public partial class Form1 : Form
         }
 
         g.Clip = previousClip;
+        DrawParticleControls(g, particlePanel);
+    }
+
+    private void DrawParticleControls(Graphics g, Rectangle bounds)
+    {
+        using Brush controlsBrush = new SolidBrush(Color.FromArgb(18, 24, 31));
+        using Brush activeButtonBrush = new SolidBrush(Color.FromArgb(45, 57, 72));
+        using Brush inactiveButtonBrush = new SolidBrush(Color.FromArgb(28, 35, 44));
+        using Pen activeButtonPen = new(Color.FromArgb(111, 211, 187));
+        using Pen inactiveButtonPen = new(Color.FromArgb(53, 64, 77));
+
+        g.FillRectangle(controlsBrush, bounds);
+        g.DrawRectangle(_softDividerPen, bounds);
+
+        DrawText(g, "mouse particles", _smallFont, _softTextBrush, new Rectangle(bounds.Left + 12, bounds.Top + 9, bounds.Width - 24, 20));
+
+        int gap = 8;
+        int buttonCount = ParticleOptions.Length;
+        int buttonWidth = Math.Max(54, (bounds.Width - 24 - gap * (buttonCount - 1)) / buttonCount);
+        int buttonHeight = 36;
+        int buttonY = bounds.Bottom - buttonHeight - 10;
+        int buttonX = bounds.Left + 12;
+
+        for (int i = 0; i < buttonCount; i++)
+        {
+            ParticleOption option = ParticleOptions[i];
+            Rectangle button = new(buttonX, buttonY, buttonWidth, buttonHeight);
+            _particleButtonBounds[i] = button;
+
+            bool active = option.Mode == _particleMode;
+            g.FillRectangle(active ? activeButtonBrush : inactiveButtonBrush, button);
+            g.DrawRectangle(active ? activeButtonPen : inactiveButtonPen, button);
+
+            Color iconColor = active ? Color.FromArgb(242, 247, 250) : Color.FromArgb(159, 172, 184);
+            using Pen iconPen = new(iconColor, 1.8f);
+            using Brush iconBrush = new SolidBrush(iconColor);
+            DrawParticleShape(g, option.Mode, new PointF(button.Left + 18, button.Top + button.Height / 2f), 10f, iconPen, iconBrush);
+
+            DrawText(g, option.Label, _tinyFont, active ? _normalCodeBrush : _softTextBrush, new Rectangle(button.Left + 32, button.Top + 10, button.Width - 38, 18));
+            buttonX += buttonWidth + gap;
+        }
     }
 
     private void DrawDiffLine(Graphics g, DiffLine line, Rectangle bounds, float y, float lineHeight)
@@ -869,23 +950,47 @@ public partial class Form1 : Form
             float progress = sparkle.Age / (float)sparkle.Lifespan;
             int alpha = Math.Clamp((int)(190 * (1f - progress)), 0, 190);
             float size = sparkle.Size * (1f - progress * 0.35f);
-            float half = size / 2f;
 
             using Pen pen = new(Color.FromArgb(alpha, sparkle.Color), Math.Max(1.2f, size / 3f));
             using Brush brush = new SolidBrush(Color.FromArgb(Math.Clamp(alpha + 35, 0, 210), sparkle.Color));
 
-            PointF center = sparkle.Position;
-            g.DrawLine(pen, center.X - half, center.Y, center.X + half, center.Y);
-            g.DrawLine(pen, center.X, center.Y - half, center.X, center.Y + half);
-
-            if (size > 5f)
-            {
-                float dotSize = Math.Max(1.5f, size / 3f);
-                g.FillEllipse(brush, center.X - dotSize / 2f, center.Y - dotSize / 2f, dotSize, dotSize);
-            }
+            DrawParticleShape(g, sparkle.Mode, sparkle.Position, size, pen, brush);
         }
 
         g.SmoothingMode = previousSmoothing;
+    }
+
+    private static void DrawParticleShape(Graphics g, ParticleMode mode, PointF center, float size, Pen pen, Brush brush)
+    {
+        float half = size / 2f;
+
+        switch (mode)
+        {
+            case ParticleMode.Dots:
+                g.FillEllipse(brush, center.X - half, center.Y - half, size, size);
+                break;
+            case ParticleMode.Blocks:
+                g.FillRectangle(brush, center.X - half, center.Y - half, size, size);
+                g.DrawRectangle(pen, center.X - half, center.Y - half, size, size);
+                break;
+            case ParticleMode.Pluses:
+                g.DrawLine(pen, center.X - half, center.Y, center.X + half, center.Y);
+                g.DrawLine(pen, center.X, center.Y - half, center.X, center.Y + half);
+                break;
+            default:
+                g.DrawLine(pen, center.X - half, center.Y, center.X + half, center.Y);
+                g.DrawLine(pen, center.X, center.Y - half, center.X, center.Y + half);
+                g.DrawLine(pen, center.X - half * 0.7f, center.Y - half * 0.7f, center.X + half * 0.7f, center.Y + half * 0.7f);
+                g.DrawLine(pen, center.X - half * 0.7f, center.Y + half * 0.7f, center.X + half * 0.7f, center.Y - half * 0.7f);
+
+                if (size > 5f)
+                {
+                    float dotSize = Math.Max(1.5f, size / 3f);
+                    g.FillEllipse(brush, center.X - dotSize / 2f, center.Y - dotSize / 2f, dotSize, dotSize);
+                }
+
+                break;
+        }
     }
 
     private static Rectangle Inset(Rectangle rectangle, int left, int top, int right, int bottom)
@@ -919,9 +1024,19 @@ public partial class Form1 : Form
 
     private readonly record struct ProjectInfo(string Name, string Detail, int BaseProgress, string[] Files);
 
+    private readonly record struct ParticleOption(string Label, ParticleMode Mode);
+
     private readonly record struct DiffLine(char Marker, string Text);
 
-    private struct Sparkle(PointF position, PointF velocity, int age, int lifespan, float size, Color color)
+    private enum ParticleMode
+    {
+        Stars,
+        Dots,
+        Blocks,
+        Pluses
+    }
+
+    private struct Sparkle(PointF position, PointF velocity, int age, int lifespan, float size, Color color, ParticleMode mode)
     {
         public PointF Position = position;
         public PointF Velocity = velocity;
@@ -929,5 +1044,6 @@ public partial class Form1 : Form
         public int Lifespan = lifespan;
         public float Size = size;
         public Color Color = color;
+        public ParticleMode Mode = mode;
     }
 }
