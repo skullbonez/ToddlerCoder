@@ -168,11 +168,11 @@ public partial class Form1 : Form
         DoubleBuffered = true;
         KeyPreview = true;
         BackColor = Color.FromArgb(13, 17, 23);
-        _codeFont = new Font("Consolas", 19f, FontStyle.Regular, GraphicsUnit.Pixel);
-        _diffFont = new Font("Consolas", 15f, FontStyle.Regular, GraphicsUnit.Pixel);
-        _smallFont = new Font("Segoe UI", 14f, FontStyle.Regular, GraphicsUnit.Pixel);
-        _tinyFont = new Font("Segoe UI", 12f, FontStyle.Regular, GraphicsUnit.Pixel);
-        _titleFont = new Font("Segoe UI Semibold", 18f, FontStyle.Regular, GraphicsUnit.Pixel);
+        _codeFont = new Font("Consolas", 30f, FontStyle.Regular, GraphicsUnit.Pixel);
+        _diffFont = new Font("Consolas", 18f, FontStyle.Regular, GraphicsUnit.Pixel);
+        _smallFont = new Font("Segoe UI", 16f, FontStyle.Regular, GraphicsUnit.Pixel);
+        _tinyFont = new Font("Segoe UI", 13f, FontStyle.Regular, GraphicsUnit.Pixel);
+        _titleFont = new Font("Segoe UI Semibold", 20f, FontStyle.Regular, GraphicsUnit.Pixel);
 
         _lines.Add("");
         _terminalLines.Enqueue("[ready] workspace opened");
@@ -884,7 +884,7 @@ public partial class Form1 : Form
         g.FillRectangle(badgeBrush, fileBadge);
         DrawText(g, $"{Projects[_activeProjectIndex].Name}/Builder.cs", _smallFont, _softTextBrush, Inset(fileBadge, 12, 5, 12, 4));
 
-        Rectangle particlePanel = new(bounds.Left + 14, bounds.Bottom - 142, bounds.Width - 28, 126);
+        Rectangle particlePanel = new(bounds.Left + 14, bounds.Bottom - 162, bounds.Width - 28, 146);
         Rectangle diffArea = new(bounds.Left, fileBadge.Bottom + 14, bounds.Width, particlePanel.Top - fileBadge.Bottom - 24);
         using Region previousClip = g.Clip.Clone();
         g.SetClip(diffArea);
@@ -922,8 +922,8 @@ public partial class Form1 : Form
         int buttonCount = ParticleOptions.Length;
         int columnCount = 2;
         int buttonWidth = Math.Max(100, (bounds.Width - 28 - gap) / columnCount);
-        int buttonHeight = 38;
-        int startY = bounds.Top + 42;
+        int buttonHeight = 42;
+        int startY = bounds.Top + 44;
         int startX = bounds.Left + 14;
 
         for (int i = 0; i < buttonCount; i++)
@@ -952,7 +952,7 @@ public partial class Form1 : Form
                 g.FillEllipse(swatchBrush, swatchX, button.Top + 12, 8, 8);
             }
 
-            DrawText(g, option.Label, _smallFont, active ? _normalCodeBrush : _softTextBrush, new Rectangle(button.Left + 42, button.Top + 9, button.Width - 88, 20));
+            DrawText(g, option.Label, _smallFont, active ? _normalCodeBrush : _softTextBrush, new Rectangle(button.Left + 42, button.Top + 10, button.Width - 88, 22));
         }
     }
 
