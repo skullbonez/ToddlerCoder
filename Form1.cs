@@ -45,6 +45,7 @@ public partial class Form1 : Form
     private int _pulse;
     private int _activeProjectIndex;
     private int _particleOptionIndex;
+    private Point _typingParticleOrigin;
     private string _currentBanner = "";
     private int _bannerTicks;
     private float _exitHoldProgress;
@@ -256,11 +257,18 @@ public partial class Form1 : Form
     {
         base.OnMouseDown(e);
 
-        if (e.Button == MouseButtons.Left && TrySelectParticleMode(e.Location))
+        if (e.Button == MouseButtons.None)
         {
-            AddSparkles(e.Location, 18);
-            Invalidate();
+            return;
         }
+
+        if (e.Button == MouseButtons.Left)
+        {
+            TrySelectParticleMode(e.Location);
+        }
+
+        AddSparkles(e.Location, _random.Next(20, 26));
+        Invalidate();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -442,6 +450,7 @@ public partial class Form1 : Form
         };
 
         AdvanceTyping(amount);
+        AddSparkles(GetTypingParticleOrigin(), _random.Next(5, 11));
 
         if (_keyCount % 4 == 0)
         {
@@ -754,11 +763,15 @@ public partial class Form1 : Form
             y += lineHeight;
         }
 
+        string currentLine = _lines.Count == 0 ? "" : _lines[^1];
+        float cursorX = codeArea.Left + 20 + MeasureCode(g, currentLine);
+        float cursorY = bounds.Top + 14 + ((_lines.Count - start - 1) * lineHeight);
+        _typingParticleOrigin = new Point(
+            Math.Clamp((int)cursorX + 4, bounds.Left + 12, bounds.Right - 12),
+            Math.Clamp((int)(cursorY + lineHeight / 2f), bounds.Top + 12, bounds.Bottom - 12));
+
         if ((_pulse / 4) % 2 == 0)
         {
-            string currentLine = _lines.Count == 0 ? "" : _lines[^1];
-            float cursorX = codeArea.Left + 20 + MeasureCode(g, currentLine);
-            float cursorY = bounds.Top + 14 + ((_lines.Count - start - 1) * lineHeight);
             g.DrawLine(_cursorPen, cursorX + 3, cursorY + 3, cursorX + 3, cursorY + lineHeight - 5);
         }
 
@@ -1037,6 +1050,16 @@ public partial class Form1 : Form
         }
 
         g.SmoothingMode = previousSmoothing;
+    }
+
+    private Point GetTypingParticleOrigin()
+    {
+        if (_typingParticleOrigin != Point.Empty)
+        {
+            return _typingParticleOrigin;
+        }
+
+        return new Point(ClientSize.Width / 2, ClientSize.Height / 2);
     }
 
     private static void DrawParticleShape(Graphics g, ParticleMode mode, PointF center, float size, Pen pen, Brush brush)
